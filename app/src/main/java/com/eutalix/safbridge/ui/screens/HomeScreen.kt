@@ -95,7 +95,7 @@ fun HomeScreen(
                     onClick = { launcher.launch(null) },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(Icons.Default.Add, "Add Folder", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Default.Add, "Add", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
         }
@@ -117,8 +117,8 @@ fun HomeScreen(
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "1. Add folders here using the (+) button.\n" +
-                            "2. Open ZArchiver > Settings > Root management (or Plugins).\n" +
-                            "3. Your folders will appear there.",
+                            "2. Open ZArchiver.\n" +
+                            "3. Tap the storage dropdown menu (top bar) to access them.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
