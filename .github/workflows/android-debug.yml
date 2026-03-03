@@ -22,15 +22,18 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
-      - name: Setup Gradle
+      - name: Setup Gradle with cache
         uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --build-cache
 
       - name: Delete existing debug-latest release (if exists)
         uses: dev-drprasad/delete-tag-and-release@v1.1
