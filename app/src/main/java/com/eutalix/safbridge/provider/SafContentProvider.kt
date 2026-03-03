@@ -26,8 +26,7 @@ class SafContentProvider : ContentProvider() {
     private val COL_ACCOUNTS = arrayOf("_name", "_id", "_flags")
     private val COL_FILES = arrayOf("_name", "_id", "_size", "_dir", "_last_mod", "_path")
 
-    // Security: Only allow write operations from the Pro version to avoid corruption issues
-    // present in the Free version's external file handling logic.
+    // Security: Packages allowed to perform potentially destructive edits (overwrite)
     private val ALLOWED_WRITE_PACKAGES = setOf(
         "ru.zdevs.zarchiver.pro",
         "com.eutalix.safbridge" // Allow self for internal debugging
@@ -48,10 +47,10 @@ class SafContentProvider : ContentProvider() {
     }
 
     /**
-     * Checks if the calling package is allowed to perform write operations.
-     * Also checks the global "Force Read-Only" user setting.
+     * Checks if the calling package is the Pro version or Self.
+     * Used to prevent file corruption on existing files with the Free version.
      */
-    private fun canWrite(): Boolean {
+    private fun isProVersion(): Boolean {
         val settings = context?.getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (settings?.getBoolean("force_readonly", false) == true) return false
 
@@ -60,35 +59,13 @@ class SafContentProvider : ContentProvider() {
         return ALLOWED_WRITE_PACKAGES.contains(callingPkg)
     }
 
-    // --- DEBUG HELPER ---
-    private fun showDebugToast(message: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-        }
-    }
-    // --------------------
-
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
         val context = context ?: return null
-
-        // --- DEBUG INJECTION ---
-        if (selection == "get=accounts") {
-            showDebugToast("DEBUG: ZArchiver requested folder list.")
-        }
-        // -----------------------
 
         // 1. Handshake: List "Accounts" (Roots)
         if (selection == "get=accounts") {
             val cursor = MatrixCursor(COL_ACCOUNTS)
             val prefs = context.getSharedPreferences("accounts", Context.MODE_PRIVATE)
-            
-            // --- DEBUG INJECTION ---
-            val count = prefs.all.size
-            if (count == 0) {
-                showDebugToast("DEBUG WARNING: No folders found in 'accounts' prefs!")
-            }
-            // -----------------------
-
             prefs.all.forEach { (uriString, name) ->
                 // _id is the SAF Tree URI string itself
                 cursor.addRow(arrayOf(name.toString(), uriString, 0))
@@ -138,11 +115,8 @@ class SafContentProvider : ContentProvider() {
             return response 
         }
 
-        // Enforce Write Protection logic
-        if (!canWrite() && method != "disk" && method != "error") {
-             response.putString("_text", "Write operations are restricted to ZArchiver Pro.")
-             return response
-        }
+        // NOTE: We do NOT block 'mkdir', 'rename', or 'remove' for the Free version anymore.
+        // The Free version handles these operations correctly.
 
         val rootUri = parseRootUri(extras?.getString("_account") ?: return response)
         val logicalPath = Uri.decode(extras.getParcelable<Uri>("_uri")?.path ?: "/")
@@ -168,7 +142,7 @@ class SafContentProvider : ContentProvider() {
                             val parentPath = if (logicalPath.lastIndexOf('/') > 0) logicalPath.substring(0, logicalPath.lastIndexOf('/')) else "/"
                             val parent = findDocByPath(context, rootUri, parentPath)
                             
-                            // LOGIC: SAF rename fails if destination exists. ZArchiver expects overwrite.
+                            // FIX: SAF rename fails if destination exists. ZArchiver expects overwrite.
                             // We must manually find and delete the collision first.
                             val collision = parent?.findFile(newName)
                             if (collision != null && collision.uri != source.uri) collision.delete()
@@ -200,23 +174,25 @@ class SafContentProvider : ContentProvider() {
         val rootUri = parseRootUri(uri.fragment ?: throw FileNotFoundException("No Account"))
         val path = Uri.decode(uri.path ?: throw FileNotFoundException("No Path"))
 
-        // Enforce Write Protection in OpenFile
-        val isWrite = mode.contains("w") || mode.contains("+")
-        if (isWrite && !canWrite()) {
-            throw SecurityException("Write access denied by plugin configuration or app version.")
-        }
-
         var doc = findDocByPath(context, rootUri, path)
 
         // Sanitize Mode: ZArchiver sends custom modes like "w2", "w4". 
         // We force "wt" (Write Truncate) to ensure clean writes, or "r" for reading.
         val safeMode = if (mode.contains("w")) "wt" else "r"
+        val isWrite = mode.contains("w") || mode.contains("+")
 
+        // 1. Existing File Logic
         if (doc != null && doc.exists()) {
-             return context.contentResolver.openFileDescriptor(doc.uri, safeMode)
+            // SECURITY CHECK: If it's an existing file AND we are trying to write...
+            if (isWrite && !isProVersion()) {
+                // ... we insist on Pro version to avoid corruption/truncation issues.
+                throw SecurityException("ZArchiver Free cannot edit existing files in this plugin.")
+            }
+            return context.contentResolver.openFileDescriptor(doc.uri, safeMode)
         }
         
-        // Create file if it doesn't exist and we are in write mode
+        // 2. New File Logic (Create)
+        // We ALLOW creating new files for everyone (Free & Pro).
         if (isWrite) {
             val parentPath = if (path.lastIndexOf('/') > 0) path.substring(0, path.lastIndexOf('/')) else "/"
             val name = path.substring(path.lastIndexOf('/') + 1)
