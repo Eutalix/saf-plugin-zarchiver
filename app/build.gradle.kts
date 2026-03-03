@@ -4,40 +4,49 @@ plugins {
 }
 
 android {
-    namespace 'com.eutalix.safbridge'
-    compileSdk 34
+    namespace = "com.eutalix.safbridge"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId "com.eutalix.safbridge"
-        // Min SDK 23 (Android 6.0) to support older devices often used with ZArchiver
-        minSdk 23
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        applicationId = "com.eutalix.safbridge"
+        minSdk = 23
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         vectorDrawables {
-            useSupportLibrary true
+            useSupportLibrary = true
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     
     buildFeatures {
-        compose true
+        compose = true
     }
     
     composeOptions {
-        kotlinCompilerExtensionVersion '1.5.1'
+        kotlinCompilerExtensionVersion = "1.5.1"
+    }
+    
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = "1.8"
     }
 }
 
@@ -50,9 +59,9 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    // Vital dependencies for the plugin logic
+    
     implementation(libs.androidx.documentfile)
-    implementation(libs.androidx.material_icons_extended)
+    implementation(libs.androidx.material.icons.extended)
     
     debugImplementation(libs.androidx.ui.tooling)
 }
